@@ -20,7 +20,7 @@ feature_names = artifacts["feature_names"]
 encoders = artifacts["encoders"]
 
 st.title("🏦 Loan Approval Prediction System")
-st.write("Ashok IT - Assignment 2: Educational ML Classification Demo")
+st.write("Predictive ML Engine for Real-Time Loan Eligibility")
 st.markdown("---")
 
 col1, col2, col3 = st.columns(3)
