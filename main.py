@@ -1,126 +1,169 @@
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score,precision_score,recall_score,f1_score,confusion_matrix
-
-
 import pickle
 import warnings
-warnings.filterwarnings('ignore')
+from matplotlib import pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score, precision_score, recall_score
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-df=pd.read_csv("dataset.csv")
-# print(df)
-# understand data
-# print(df.head())
-# print(df.tail())
-# print(df.shape)
-# print(df.columns)
-# print(df.info())
-# print(df.describe())
-# check missing values
-# print(df.isnull().sum())
-# print(df.duplicated().sum())
-# df=df.drop_duplicates()
-# print(df)
+warnings.filterwarnings("ignore")
 
-# EDA
-plt.figure(figsize=(6,4))
+# 03. Load Dataset
+df = pd.read_csv("dataset.csv")
 
-sns.countplot(x='Loan_Status', data=df)
-plt.title('Target Distribution: Approved vs Rejected')
-plt.show()
+# Standardize column names (lowercase & stripped)
+df.columns = df.columns.str.strip().str.lower()
 
-# Task 7: Handle Missing Values
-# Numerical columns mein null values ko mean/median se fill karenge
-df['LoanAmount'] = df['LoanAmount'].fillna(df['LoanAmount'].median())
-df['Credit_History'] = df['Credit_History'].fillna(df['Credit_History'].mode()[0])
-# Categorical columns ko mode se fill karenge
-for col in ['Gender', 'Married', 'Dependents', 'Self_Employed', 'Loan_Amount_Term']:
+# Map common variations if present
+column_map = {
+    "applicantincome": "applicant_income",
+    "coapplicantincome": "coapplicant_income",
+    "loanamount": "loan_amount",
+    "loan_amount_term": "loan_term",
+}
+df.rename(columns=column_map, inplace=True)
+
+# 04. Data Understanding
+print("First 5 records:\n", df.head())
+print("\nDataset Shape:", df.shape)
+print("\nDataset Info:\n")
+df.info()
+print("\nNumerical Summary:\n", df.describe())
+print("\nMissing Values Count:\n", df.isnull().sum())
+
+# Remove Duplicates
+df = df.drop_duplicates()
+
+# 08. Remove Irrelevant Columns (Loan_ID)
+if "loan_id" in df.columns:
+    df = df.drop(columns=["loan_id"])
+
+# 07. Handle Missing Values
+cat_cols = [
+    "gender",
+    "married",
+    "dependents",
+    "education",
+    "self_employed",
+    "property_area",
+]
+num_cols = ["applicant_income", "coapplicant_income", "loan_amount", "loan_term"]
+
+for col in cat_cols:
+  if col in df.columns:
     df[col] = df[col].fillna(df[col].mode()[0])
 
-# Task 8: Remove Unnecessary Columns
-# Generally, Loan_ID is an identifier that needs to be removed
-if 'Loan_ID' in df.columns:
-    df = df.drop('Loan_ID', axis=1)
-# Label encoding for target variable (Loan_Status)
-df['Loan_Status'] = df['Loan_Status'].map({'Y': 1, 'N': 0})
+for col in num_cols:
+  if col in df.columns:
+    df[col] = df[col].fillna(df[col].median())
 
-# Get Dummies / One-Hot Encoding baki categorical variables ke liye
-df = pd.get_dummies(df, drop_first=True)
+if "credit_history" in df.columns:
+  df["credit_history"] = df["credit_history"].fillna(
+      df["credit_history"].mode()[0]
+  )
 
-# define dependent and in dependent variables
-x=df.drop('Loan_Status', axis=1)
-y=df['Loan_Status']
-
-# split dataset
-x_train,x_test,y_train,y_test=train_test_split(x,y,test_size=0.2,
-                                               random_state=42)
-# check train ad test data frame shape
-print("X_Train: ",x_train.shape)
-print("X_test:",x_test.shape)
-print("y_train:",y_train.shape)
-print("y_test:",y_test.shape)
-
-# create model
-model=LogisticRegression(max_iter=1000)
-model.fit(x_train,y_train)
-
-# make predictions
-y_pred=model.predict(x_test)
-print(y_pred)
-
-# Task 14: Evaluate the Model
-accuracy = accuracy_score(y_test, y_pred)
-precision = precision_score(y_test, y_pred)
-recall = recall_score(y_test, y_pred)
-f1 = f1_score(y_test, y_pred)
-conf_matrix = confusion_matrix(y_test, y_pred)
-
-print(f"\n--- Model Evaluation ---")
-print(f"Accuracy: {accuracy:.4f}")
-print(f"Precision: {precision:.4f}")
-print(f"Recall: {recall:.4f}")
-print(f"F1-Score: {f1:.4f}")
-
-plt.figure(figsize=(6,4))
-sns.heatmap(conf_matrix,annot=True,fmt='d',cmap='Blues')
-plt.title('Confusion Matrix')
-plt.xlabel('Predicted')
-plt.ylabel('Actual')
+# 05. Visualizations / EDA
+plt.figure(figsize=(6, 4))
+sns.countplot(x="loan_status", data=df)
+plt.title("Target Distribution: Approved vs Rejected")
 plt.show()
 
-# test new data
-new_application = pd.DataFrame({
-    'ApplicantIncome': [50000],
-    'CoapplicantIncome': [0],
-    'LoanAmount': [200000],
-    'Loan_Amount_Term': [360], # Standard term in most datasets
-    'Credit_History': [1],
-    'Gender_Male': [1],
-    'Married_Yes': [1],
-    'Dependents_1': [0],
-    'Dependents_2': [0],
-    'Dependents_3+': [0],
-    'Education_Not Graduate': [0],
-    'Self_Employed_Yes': [0],
-    'Property_Area_Semiurban': [0],
-    'Property_Area_Urban': [1]
-})
+# 09. Encode Categorical Data
+encoders = {}
+for col in cat_cols:
+  if col in df.columns:
+    le = LabelEncoder()
+    df[col] = le.fit_transform(df[col].astype(str))
+    encoders[col] = le
 
-# Note: The exact columns of 'new_application' must match the columns of 'X' after get_dummies.
-# Ensure all columns match by reindexing
-new_application = new_application.reindex(columns=x.columns, fill_value=0)
+# Map Target: Y -> 1 (Approved), N -> 0 (Rejected)
+df["loan_status"] = df["loan_status"].astype(str).str.upper().map({"Y": 1, "N": 0})
+df = df.dropna(subset=["loan_status"])
+df["loan_status"] = df["loan_status"].astype(int)
 
-new_prediction = model.predict(new_application)
-result = "Approved" if new_prediction[0] == 1 else "Rejected"
-print(f"\n--- Prediction for New Application ---")
-print(f"The loan application is: {result}")
+# 06. Identify X and y
+X = df.drop("loan_status", axis=1)
+y = df["loan_status"]
 
-# save model
-with open("loan_approved_status.pkl","wb") as file:
-    pickle.dump(model,file)
+# 10. Train / Test Split (80/20)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
 
-print("************Model saved to pickle file ************")
+# Standard Scaling (Crucial: prevents 50,000 from overflowing the model)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# 11 & 12. Build & Train Logistic Regression Model
+model = LogisticRegression(max_iter=1000)
+model.fit(X_train_scaled, y_train)
+
+# 13. Make Predictions
+y_pred = model.predict(X_test_scaled)
+
+# 14 & 15. Evaluation & Metrics
+print("\n--- Model Evaluation ---")
+print(f"Accuracy : {accuracy_score(y_test, y_pred):.4f}")
+print(f"Precision: {precision_score(y_test, y_pred, zero_division=0):.4f}")
+print(f"Recall   : {recall_score(y_test, y_pred, zero_division=0):.4f}")
+print(f"F1-Score : {f1_score(y_test, y_pred, zero_division=0):.4f}")
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+# Confusion Matrix Heatmap
+cm = confusion_matrix(y_test, y_pred)
+plt.figure(figsize=(5, 4))
+sns.heatmap(
+    cm,
+    annot=True,
+    fmt="d",
+    cmap="Blues",
+    xticklabels=["Rejected", "Approved"],
+    yticklabels=["Rejected", "Approved"],
+)
+plt.title("Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.show()
+
+# 16. Test New Application (From Assignment Specification)
+sample_applicant = pd.DataFrame([{
+    "gender": encoders["gender"].transform(["Male"])[0],
+    "married": encoders["married"].transform(["Yes"])[0],
+    "dependents": encoders["dependents"].transform(["0"])[0],
+    "education": encoders["education"].transform(["Graduate"])[0],
+    "self_employed": encoders["self_employed"].transform(["No"])[0],
+    "applicant_income": 50000,
+    "coapplicant_income": 0,
+    "loan_amount": 200,  # 2 Lakhs in Thousands
+    "loan_term": 360,
+    "credit_history": 1.0,
+    "property_area": encoders["property_area"].transform(["Urban"])[0],
+}])
+
+sample_applicant = sample_applicant[list(X.columns)]
+sample_applicant_scaled = scaler.transform(sample_applicant)
+sample_pred = model.predict(sample_applicant_scaled)[0]
+sample_prob = model.predict_proba(sample_applicant_scaled)[0]
+
+print("\n--- Test Sample Prediction ---")
+print(
+    f"Status: {'Approved (Y)' if sample_pred == 1 else 'Rejected (N)'}"
+    f" (Approval Chance: {sample_prob[1]*100:.1f}%)"
+)
+
+# Save Complete Pipeline Bundle
+bundle = {
+    "model": model,
+    "scaler": scaler,
+    "feature_names": list(X.columns),
+    "encoders": encoders,
+}
+
+with open("loan_approval_model.pkl", "wb") as f:
+  pickle.dump(bundle, f)
+
+print("\nModel pipeline bundled & saved to loan_approval_model.pkl")
